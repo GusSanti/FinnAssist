@@ -7,7 +7,6 @@ from app.database import SessionLocal
 
 
 def _month_bounds(year: int, month: int) -> tuple[date, date]:
-    """Return the inclusive start and exclusive end of a calendar month."""
     if not 1 <= month <= 12:
         raise ValueError("month must be between 1 and 12")
     if year < 1:
@@ -23,7 +22,6 @@ def _month_bounds(year: int, month: int) -> tuple[date, date]:
 
 
 def _shift_month(year: int, month: int, offset: int) -> tuple[int, int]:
-    """Move a year/month pair by ``offset`` calendar months."""
     _month_bounds(year, month)
     absolute_month = year * 12 + month - 1 + offset
     shifted_year, shifted_month = divmod(absolute_month, 12)
@@ -31,7 +29,6 @@ def _shift_month(year: int, month: int, offset: int) -> tuple[int, int]:
 
 
 def _selected_month(year: int | None, month: int | None) -> tuple[int, int]:
-    """Use the current month when no explicit period is supplied."""
     if year is None and month is None:
         today = date.today()
         return today.year, today.month
@@ -43,7 +40,6 @@ def _selected_month(year: int | None, month: int | None) -> tuple[int, int]:
 
 
 def get_total_income(user_id: int) -> Decimal:
-    """Return all income ever registered for a user."""
     with SessionLocal() as session:
         query = text("""
             SELECT COALESCE(SUM(amount), 0)
@@ -56,7 +52,6 @@ def get_total_income(user_id: int) -> Decimal:
 
 
 def get_total_expenses(user_id: int) -> Decimal:
-    """Return all expenses ever registered for a user."""
     with SessionLocal() as session:
         query = text("""
             SELECT COALESCE(SUM(amount), 0)
@@ -69,7 +64,6 @@ def get_total_expenses(user_id: int) -> Decimal:
 
 
 def get_balance(user_id: int) -> Decimal:
-    """Return the user's all-time balance."""
     return get_total_income(user_id) - get_total_expenses(user_id)
 
 
@@ -78,7 +72,6 @@ def get_monthly_balance(
     year: int | None = None,
     month: int | None = None,
 ) -> Decimal:
-    """Return income minus expenses for one month."""
     year, month = _selected_month(year, month)
     start_date, end_date = _month_bounds(year, month)
 
@@ -109,7 +102,6 @@ def get_expenses_by_category(
     year: int | None = None,
     month: int | None = None,
 ) -> list[dict[str, object]]:
-    """Return a month's expenses grouped from largest to smallest category."""
     year, month = _selected_month(year, month)
     start_date, end_date = _month_bounds(year, month)
 
@@ -146,7 +138,6 @@ def get_monthly_average(
     year: int | None = None,
     month: int | None = None,
 ) -> Decimal:
-    """Return average monthly expenses over a fixed calendar-month window."""
     if months < 1:
         raise ValueError("months must be greater than zero")
 
@@ -183,7 +174,6 @@ def get_financial_summary(
     month: int | None = None,
     average_months: int = 6,
 ) -> dict[str, object]:
-    """Build the complete financial snapshot consumed by the API and future AI."""
     if average_months < 1:
         raise ValueError("average_months must be greater than zero")
 

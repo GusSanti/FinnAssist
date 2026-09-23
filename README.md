@@ -122,3 +122,44 @@ Essas informações serão armazenadas na base de conhecimento utilizada pelo **
 ---
 
 O objetivo final é desenvolver um **assistente financeiro inteligente, explicável, contextualizado e orientado por dados**, capaz de ajudar o usuário a compreender melhor sua própria situação financeira e tomar decisões de forma mais informada.
+
+---
+
+# 5. Conversa com dados via Ollama
+
+O endpoint `POST /users/{user_id}/chat` usa tool calling para permitir que o
+modelo consulte as funções financeiras da aplicação sem receber acesso direto ao
+PostgreSQL.
+
+Fluxo da requisição:
+
+1. A API envia ao Ollama a pergunta e os esquemas das ferramentas disponíveis.
+2. O modelo escolhe uma ferramenta e devolve seu nome e argumentos estruturados.
+3. O backend valida o nome em uma lista permitida, injeta o `user_id` da rota e
+   executa a função Python correspondente.
+4. A função consulta o PostgreSQL e seu resultado é devolvido ao modelo como uma
+   mensagem com papel `tool`.
+5. O Ollama produz a resposta final em linguagem natural.
+
+Exemplo:
+
+```powershell
+uvicorn app.main:app --reload
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://127.0.0.1:8000/users/1/chat `
+  -ContentType application/json `
+  -Body '{"message":"Em qual categoria gastei mais em setembro de 2026?"}'
+```
+
+Configurações disponíveis no ambiente:
+
+```text
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/finnassist_db
+OLLAMA_MODEL=qwen3:4b
+```
+
+O `user_id` na URL é apenas uma etapa inicial. Antes de disponibilizar a API a
+usuários reais, ele deve ser obtido de uma autenticação confiável (por exemplo,
+um token) em vez de ser aceito livremente na rota.

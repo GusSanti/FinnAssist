@@ -1,9 +1,19 @@
 from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel, Field
 
+from app.ai.financial_agent import answer_financial_question
 from app.services.financial_service import get_financial_summary
 
 
 app = FastAPI(title="FinAssist API")
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=4000)
+
+
+class ChatResponse(BaseModel):
+    answer: str
 
 
 @app.get("/")
@@ -27,3 +37,14 @@ def financial_summary(
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@app.post("/users/{user_id}/chat", response_model=ChatResponse)
+def financial_chat(user_id: int, request: ChatRequest):
+    try:
+        answer = answer_financial_question(user_id, request.message)
+        return ChatResponse(answer=answer)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except RuntimeError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
