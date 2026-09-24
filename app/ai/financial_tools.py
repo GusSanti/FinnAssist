@@ -11,15 +11,18 @@ from app.services.financial_service import (
     get_financial_summary,
     get_monthly_average,
     get_monthly_balance,
+    get_monthly_expenses,
     get_total_expenses,
     get_total_income,
 )
+from app.services.knowledge_service import search_financial_knowledge
 
 
 def _tool(
     name: str,
     description: str,
     properties: dict[str, Any] | None = None,
+    required: list[str] | None = None,
 ) -> dict[str, Any]:
     """Build the JSON schema sent to Ollama for one application function."""
     return {
@@ -30,6 +33,7 @@ def _tool(
             "parameters": {
                 "type": "object",
                 "properties": properties or {},
+                "required": required or [],
                 "additionalProperties": False,
             },
         },
@@ -69,7 +73,17 @@ FINANCIAL_TOOLS = [
     ),
     _tool("get_balance", "Obtém o saldo histórico total do usuário."),
     _tool("get_total_income", "Obtém a soma histórica de todas as receitas do usuário."),
-    _tool("get_total_expenses", "Obtém a soma histórica de todas as despesas do usuário."),
+    _tool(
+        "get_total_expenses",
+        "Obtém a soma histórica de todas as despesas do usuário. Não use para "
+        "perguntas limitadas a um mês.",
+    ),
+    _tool(
+        "get_monthly_expenses",
+        "Obtém o total de despesas de um mês. Use para perguntas como 'quanto "
+        "gastei neste mês?'.",
+        PERIOD_PROPERTIES,
+    ),
     _tool(
         "get_monthly_balance",
         "Obtém o saldo (receitas menos despesas) de um mês.",
@@ -93,6 +107,26 @@ FINANCIAL_TOOLS = [
             },
         },
     ),
+    _tool(
+        "search_financial_knowledge",
+        "Busca conceitos, explicações e orientações gerais na base de conhecimento "
+        "financeiro. Use para perguntas sobre investimentos, reserva de emergência, "
+        "riscos e educação financeira. Não use para consultar valores pessoais.",
+        {
+            "query": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Pergunta completa ou termos que devem ser pesquisados.",
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20,
+                "description": "Quantidade de chunks; padrão 5.",
+            },
+        },
+        required=["query"],
+    ),
 ]
 
 
@@ -101,10 +135,14 @@ TOOL_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "get_balance": get_balance,
     "get_total_income": get_total_income,
     "get_total_expenses": get_total_expenses,
+    "get_monthly_expenses": get_monthly_expenses,
     "get_monthly_balance": get_monthly_balance,
     "get_expenses_by_category": get_expenses_by_category,
     "get_monthly_average": get_monthly_average,
+    "search_financial_knowledge": search_financial_knowledge,
 }
+
+USER_SCOPED_TOOLS = frozenset(TOOL_FUNCTIONS) - {"search_financial_knowledge"}
 
 
 def _json_default(value: Any) -> Any:
@@ -132,13 +170,21 @@ def execute_financial_tool(
         )
 
     try:
-        result = function(user_id=user_id, **arguments)
+        if tool_name in USER_SCOPED_TOOLS:
+            result = function(user_id=user_id, **arguments)
+        else:
+            result = function(**arguments)
         return json.dumps(result, default=_json_default, ensure_ascii=False)
     except (TypeError, ValueError) as error:
         return json.dumps({"error": str(error)}, ensure_ascii=False)
     except Exception:
         # Database and infrastructure details must not be exposed to the model/user.
+        message = (
+            "Não foi possível consultar a base de conhecimento."
+            if tool_name == "search_financial_knowledge"
+            else "Não foi possível consultar os dados financeiros."
+        )
         return json.dumps(
-            {"error": "Não foi possível consultar os dados financeiros."},
+            {"error": message},
             ensure_ascii=False,
         )

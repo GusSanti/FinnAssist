@@ -97,6 +97,34 @@ def get_monthly_balance(
         return result.scalar_one()
 
 
+def get_monthly_expenses(
+    user_id: int,
+    year: int | None = None,
+    month: int | None = None,
+) -> Decimal:
+    """Return the user's total expenses for one calendar month."""
+    year, month = _selected_month(year, month)
+    start_date, end_date = _month_bounds(year, month)
+
+    with SessionLocal() as session:
+        result = session.execute(
+            text("""
+                SELECT COALESCE(SUM(amount), 0)
+                FROM transactions
+                WHERE user_id = :user_id
+                  AND type = 'EXPENSE'
+                  AND transaction_date >= :start_date
+                  AND transaction_date < :end_date
+            """),
+            {
+                "user_id": user_id,
+                "start_date": start_date,
+                "end_date": end_date,
+            },
+        )
+        return result.scalar_one()
+
+
 def get_expenses_by_category(
     user_id: int,
     year: int | None = None,

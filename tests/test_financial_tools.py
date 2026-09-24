@@ -3,7 +3,7 @@ import unittest
 from decimal import Decimal
 from unittest.mock import patch
 
-from app.ai.financial_tools import execute_financial_tool
+from app.ai.financial_tools import FINANCIAL_TOOLS, execute_financial_tool
 
 
 class FinancialToolTests(unittest.TestCase):
@@ -34,6 +34,31 @@ class FinancialToolTests(unittest.TestCase):
     def test_rejects_unknown_tool(self):
         result = execute_financial_tool("drop_database", {}, user_id=7)
         self.assertEqual(json.loads(result), {"error": "Ferramenta desconhecida."})
+
+    def test_knowledge_search_does_not_receive_user_id(self):
+        def fake_search(query, limit=5):
+            return {"results": [{"title": "Reserva", "source": "knowledge/test.md"}]}
+
+        with patch.dict(
+            "app.ai.financial_tools.TOOL_FUNCTIONS",
+            {"search_financial_knowledge": fake_search},
+            clear=True,
+        ):
+            result = execute_financial_tool(
+                "search_financial_knowledge",
+                {"query": "Onde guardar a reserva?"},
+                user_id=7,
+            )
+
+        self.assertEqual(json.loads(result)["results"][0]["title"], "Reserva")
+
+    def test_catalog_contains_rag_tool(self):
+        names = {tool["function"]["name"] for tool in FINANCIAL_TOOLS}
+        self.assertIn("search_financial_knowledge", names)
+
+    def test_catalog_contains_explicit_monthly_expenses_tool(self):
+        names = {tool["function"]["name"] for tool in FINANCIAL_TOOLS}
+        self.assertIn("get_monthly_expenses", names)
 
 
 if __name__ == "__main__":
